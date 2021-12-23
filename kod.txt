@@ -1,0 +1,242 @@
+#Kütüphanelerimiz
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import requests
+from bs4 import BeautifulSoup
+
+#Listelerimiz
+url_list = []
+prices_list = []
+propTitles = []
+propValues = []
+
+#Sitedeki özelliklerin çekilmesi
+for i in range(1,25):
+    url = "https://www.trendyol.com/tum--urunler?q=laptop&qt=laptop&st=laptop&os=1&pi=" + str(i) #url'in for döngüsüyle her seferinde güncellenmesi 
+    r = requests.get(url) #Güncellenen url'e istek yapılması
+    source = BeautifulSoup(r.content,"lxml") #İstek yapılan sayfanın içeriğinin alınması
+    
+    
+    urls=source.find_all("div",attrs={"class":"p-card-chldrn-cntnr"}) #Bütün verilerin bulunması
+    for url in urls:
+        url_laptop="https://www.trendyol.com/"+url.a.get("href") #Bu verilerin linklerinin bulunması
+        url_list.append(url_laptop) #Bu linklerin kaydedilmesi
+        print(url_laptop) #Kaydedilen bilginin yazılması
+        
+        r_laptop=requests.get(url_laptop) #Bulunan linke tekrar istek atılması
+        source_laptop=BeautifulSoup(r_laptop.content,"lxml") #Veri içeriğinin çekilmesi
+        
+        properties=source_laptop.find_all("div",attrs={"class":"prop-item"}) #Bütün özelliklerin bulunması
+        for prop in properties:
+            prop_title= prop.find("div",attrs={"class":"item-key"}).text
+            prop_value= prop.find("div",attrs={"class":"item-value"}).text
+            propTitles.append(prop_title)
+            propValues.append(prop_value)
+            
+            
+    prices = source.find_all("div",attrs={"class":"prc-box-sllng"})#Bütün fiyat özelliklerinin bulunması
+    for price in prices:
+        prices_list.append(price.text) #Bulunan özellikler arasında gezinme ve listeye yazma
+        print(price.text)
+        
+        
+        
+print(str(len(url_list))+ "Tane link bulundu.")
+print(str(len(prices_list))+"Tane fiyat bulundu.")
+print(str(len(propTitles))+"Tane özellik başlığı bulundu.")
+print(str(len(propValues))+"Tane özellik verisi bulundu")
+
+#url ve fiyatları bir data frame yazma 
+df_urls=pd.DataFrame()
+df_urls["urls"]=url_list
+df_urls["prices"]=prices_list
+
+df_urls.head()
+
+#Bulunan veri sayısını bulma
+laptops=len(url_list)
+
+#Buluan özellik başlıklarının benzersizlerini bulma
+columns = np.array(propTitles)
+columns = np.unique(columns)
+
+#Başlıkları kullanarak url ve fiyat ile birlikte yeni data frame oluşturma
+df=pd.DataFrame(columns=columns)
+df["url"]=url_list
+df["price"]=prices_list
+
+#Oluşturulan data frame gösterme
+df.head()
+
+#Data frame'i kullanarak tüm verileri çekme ve sütunlara yazdırma
+for i in range (0,laptops):
+    url= df['url'].loc[i]
+    r=requests.get(url)
+    source=BeautifulSoup(r.content,"lxml")
+    
+    properties=source.find_all("div",attrs={"class":"prop-item"})
+    for prop in properties:
+        prop_title=prop.find("div",attrs={"class":"item-key"}).text
+        prop_value=prop.find("div",attrs={"class":"item-value"}).text
+        print(prop_title+prop_value)
+        df[prop_title].loc[i]=prop_value
+
+
+df.head()
+
+#Data frame'i csv formatına çevirip kaydetme
+#ön işleme kısmı
+df.to_csv("Laptop_data.csv",index=False)
+
+trainingData = df.iloc[:, :].values
+
+df.head(500)
+
+df.rename(columns={'Arttırılabilir Azami Bellek:':'RAM','Bağlantılar:':'Bluetooth','Cihaz Ağırlığı:':'CihazAgirligi','Dokunmatik Ekran:':'DokunmatikEkran','Ekran Boyutu:': 'EkranBoyutu', 'Ekran Kartı Bellek Tipi:': 'GCMT', 'Ekran Kartı Hafızası:': 'EkranKartiHafizasi', 'Ekran Kartı Tipi:': 'EkranKartiTipi','Ekran Kartı:':'EkranKarti','Ekran Özelliği:':'EkranOzelligi','İşlemci Frekansı:':'IslemciFrekansi','İşlemci Hızı (GHz):':'GHz','İşlemci Modeli:':'IslemciModeli','İşlemci Nesli:':'IslemciNesli','İşlemci Tipi:':'IslemciTipi','İşlemci Çekirdek Sayısı:':'IslemciCekirdekSayisi','İşletim Sistemi:':'IsletimSistemi','Şarjlı Kullanım Süresi:':'SarJliKullanimSüresi','url':'url','price'
+:'price'}, inplace=True)
+
+df.columns
+
+df["RAM"] = df.RAM.str.replace(' GB', '')
+df["CihazAgirligi"] = df.CihazAgirligi.str.replace(' kg', '')
+df["CihazAgirligi"] = df.CihazAgirligi.str.replace(' ve Altı', '')
+df["CihazAgirligi"] = df.CihazAgirligi.str.replace(' ve Üstü', '')
+df["EkranKartiHafizasi"] = df.EkranKartiHafizasi.str.replace(' GB', '')
+df["EkranBoyutu"] = df.EkranBoyutu.str.replace('inç', '')
+
+df["EkranKartiHafizasi"] = df.EkranKartiHafizasi.str.replace('Paylaşımlı', '0')
+df["IslemciFrekansi"] = df.IslemciFrekansi.str.replace(' GHz üstü', '')
+df["GHz"] = df.GHz.str.replace(' +', '')
+df["IslemciNesli"] = df.IslemciNesli.str.replace(' Nesil', '')
+df["IslemciNesli"] = df.IslemciNesli.str.replace('.', '')
+df["SarJliKullanimSüresi"] = df.SarJliKullanimSüresi.str.replace(' Saat', '')
+df["SarJliKullanimSüresi"] = df.SarJliKullanimSüresi.str.replace(' ve Üstü', '')
+df["SarJliKullanimSüresi"] = df.SarJliKullanimSüresi.str.replace(' ve Altı', '')
+df["price"] = df.price.str.replace(' TL', '')
+
+df
+
+from sklearn.impute import SimpleImputer
+imputerRAM = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerRAM = imputerRAM.fit(trainingData[:, 0:1])
+df["RAM"] = imputerRAM.transform(trainingData[:, 0:1])
+
+imputerbag = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerbag = imputerbag.fit(trainingData[:, 1:2])
+df["Bağlantı Girişleri:"] = imputerbag.transform(trainingData[:, 1:2])
+
+imputerBluetooth = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerBluetooth = imputerBluetooth.fit(trainingData[:, 2:3])
+df["Bluetooth"] = imputerBluetooth.transform(trainingData[:, 2:3])
+
+imputerCihazAgirligi = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerCihazAgirligi = imputerCihazAgirligi.fit(trainingData[:, 3:4])
+df["CihazAgirligi"] = imputerCihazAgirligi.transform(trainingData[:, 3:4])
+
+imputerDokunmatikEkran = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerDokunmatikEkran = imputerDokunmatikEkran.fit(trainingData[:, 4:5])
+df["DokunmatikEkran"] = imputerDokunmatikEkran.transform(trainingData[:, 4:5])
+
+imputerEkranBoyutu = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerEkranBoyutu = imputerEkranBoyutu.fit(trainingData[:, 5:6])
+df["EkranBoyutu"] = imputerEkranBoyutu.transform(trainingData[:, 5:6])
+
+imputerGCMT = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerGCMT = imputerGCMT.fit(trainingData[:, 6:7])
+df["GCMT"] = imputerGCMT.transform(trainingData[:, 6:7])
+
+imputerEkranKartiHafizasi = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerEkranKartiHafizasi = imputerEkranKartiHafizasi.fit(trainingData[:, 7:8])
+df["EkranKartiHafizasi"] = imputerEkranKartiHafizasi.transform(trainingData[:, 7:8])
+
+imputerEkranKartiTipi = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerEkranKartiTipi = imputerEkranKartiTipi.fit(trainingData[:, 8:9])
+df["EkranKartiTipi"] = imputerEkranKartiTipi.transform(trainingData[:, 8:9])
+
+imputerEkranKarti = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerEkranKarti = imputerEkranKarti.fit(trainingData[:, 9:10])
+df["EkranKarti"] = imputerEkranKarti.transform(trainingData[:, 9:10])
+
+imputerIslemciFrekansi = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerIslemciFrekansi = imputerIslemciFrekansi.fit(trainingData[:, 10:11])
+df["IslemciFrekansi"] = imputerIslemciFrekansi.transform(trainingData[:, 10:11])
+
+imputerGHz = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerGHz = imputerGHz.fit(trainingData[:, 11:12])
+df["GHz"] = imputerGHz.transform(trainingData[:, 11:12])
+
+imputerIslemciModeli = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerIslemciModeli = imputerIslemciModeli.fit(trainingData[:, 12:13])
+df["IslemciModeli"] = imputerIslemciModeli.transform(trainingData[:, 12:13])
+
+imputerIslemciNesli = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerIslemciNesli = imputerIslemciNesli.fit(trainingData[:, 13:14])
+df["IslemciNesli"] = imputerIslemciNesli.transform(trainingData[:, 13:14])
+
+imputerIslemciTipi = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerIslemciTipi = imputerIslemciTipi.fit(trainingData[:, 14:15])
+df["IslemciTipi"] = imputerIslemciTipi.transform(trainingData[:, 14:15])
+
+imputerIslemciCekirdekSayisi = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerIslemciCekirdekSayisi = imputerIslemciCekirdekSayisi.fit(trainingData[:, 15:16])
+df["IslemciCekirdekSayisi"] = imputerIslemciCekirdekSayisi.transform(trainingData[:, 15:16])
+
+imputerIsletimSistemi = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerIsletimSistemi = imputerIsletimSistemi.fit(trainingData[:, 16:17])
+df["IsletimSistemi"] = imputerIsletimSistemi.transform(trainingData[:, 16:17])
+
+imputerSarJliKullanimSüresi = SimpleImputer(missing_values=np.nan, strategy='most_frequent')
+imputerSarJliKullanimSüresi = imputerSarJliKullanimSüresi.fit(trainingData[:, 17:18])
+df["SarJliKullanimSüresi"] = imputerSarJliKullanimSüresi.transform(trainingData[:, 17:18])
+
+df["RAM"] = df.RAM.str.replace(' GB', '')
+
+df
+
+from sklearn.preprocessing import OneHotEncoder
+enCoder = OneHotEncoder(sparse=False)
+
+enCoder.fit_transform(df[["Bluetooth"]])
+df["Bluetooth"] = enCoder.fit_transform(df[["Bluetooth"]])
+
+enCoder.fit_transform(df[["CihazAgirligi"]])
+df["CihazAgirligi"] = enCoder.fit_transform(df[["CihazAgirligi"]])
+
+enCoder.fit_transform(df[["DokunmatikEkran"]])
+df["DokunmatikEkran"] = enCoder.fit_transform(df[["DokunmatikEkran"]])
+
+enCoder.fit_transform(df[["GCMT"]])
+df["GCMT"] = enCoder.fit_transform(df[["GCMT"]])
+
+enCoder.fit_transform(df[["EkranKartiTipi"]])
+df["EkranKartiTipi"] = enCoder.fit_transform(df[["EkranKartiTipi"]])
+
+enCoder.fit_transform(df[["EkranKarti"]])
+df["EkranKarti"] = enCoder.fit_transform(df[["EkranKarti"]])
+
+enCoder.fit_transform(df[["EkranOzelligi"]])
+df["EkranOzelligi"] = enCoder.fit_transform(df[["EkranOzelligi"]])
+
+enCoder.fit_transform(df[["IslemciFrekansi"]])
+df["IslemciFrekansi"] = enCoder.fit_transform(df[["IslemciFrekansi"]])
+
+enCoder.fit_transform(df[["GHz"]])
+df["GHz"] = enCoder.fit_transform(df[["GHz"]])
+
+enCoder.fit_transform(df[["IslemciModeli"]])
+df["IslemciModeli"] = enCoder.fit_transform(df[["IslemciModeli"]])
+
+enCoder.fit_transform(df[["IslemciNesli"]])
+df["IslemciNesli"] = enCoder.fit_transform(df[["IslemciNesli"]])
+
+enCoder.fit_transform(df[["IslemciTipi"]])
+df["IslemciTipi"] = enCoder.fit_transform(df[["IslemciTipi"]])
+
+enCoder.fit_transform(df[["IsletimSistemi"]])
+df["IsletimSistemi"] = enCoder.fit_transform(df[["IsletimSistemi"]])
+
+enCoder.fit_transform(df[["url"]])
+df["url"] = enCoder.fit_transform(df[["url"]])
+
+df.to_csv("onislemesonrasi.csv", index=False)
